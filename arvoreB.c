@@ -264,7 +264,7 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 
 	bp->BufferMiss += 1; 
 
-	if(bp->RRN[0] != -1){
+	if(bp->RRN[0] != -1){ //salvando a antiga raiz no arquivo
 		fseek(fp, (TAM_PAG*bp->RRN[0])+TAM_CABECALHO_B, SEEK_SET);
 		escreve_pagina(fp, bp->node[0]);
 	}
@@ -275,7 +275,13 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 	paginaCopy(bp->node[0], p);
 	//bp->node[0] = p;
 	printf("no modifica %d\n\n\n",p->N);
-	bp->RRN[0] = RRN;	
+	bp->RRN[0] = RRN;
+	for(int i=1; i<TAM_BUFFER; i++){
+		if(RRN == bp->RRN[i]){
+			bp->RRN[i] = -1;
+			reorganiza(bp, i);
+		}
+	}	
 
 
 	printf("Voce esta em um medifica raiz depois, com o RRN %d:   ",RRN);
