@@ -553,6 +553,83 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 }
 
 
+int buscaArvoreB(int chave){
+	FILE* fp = fopen("indice.bin", "rb");
+	if(fp == NULL){
+		printf("Falha no carregamento do arquivo.\n");
+		return -1;
+	}
+	Cabecalho_B* C  = le_cabecalho_B(fp);
+	Pagina *p = cria_pagina();
+	int i;
+	int RRN;
+	int flag;
+	RRN = C->noRaiz;
+	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
+	p = le_pagina(fp); //toda busca comeca pela pagina da raiz
+	while(!EhFolha(p)){
+		for(i=0; i<p->N; i++){
+			flag = 0;
+			if(p->c_pr[i]->chave == chave){
+				printf("acheiii\n");
+				fclose(fp);
+				return p->c_pr[i]->RRN;
+			}
+			if(p->c_pr[i]->chave > chave){
+				RRN = p->P[i];
+				fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
+				p = le_pagina(fp);
+				flag = 1;
+				break;
+			}
+		}
+		if(flag == 0){
+			RRN = p->P[i+1];
+			fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
+			p = le_pagina(fp);
+		}else
+			flag = 0;
+	}
+	//cheguei aqui entao to procurando em um no folha
+	for(i=0; i<p->N; i++){
+		if(p->c_pr[i]->chave == chave){
+			printf("acheiii\n");
+			fclose(fp);
+			return p->c_pr[i]->RRN;
+		}
+		if(p->c_pr[i]->chave > chave){
+			break;
+		}
+	}
+	fclose(fp);
+	return -1;
+	//se chegou aqui, nao achou a chave buscada
+}
+
+int existencia_registro();
+Escola* le_bin_escola();
+void print_escola();
+void free_escola();
+
+void busca(int chave){
+	Escola* r;
+	int RRN = buscaArvoreB(chave);
+	FILE *fp = fopen("saida.bin", "rb");
+	if(fp == NULL){
+		printf("Falha no carregamento do arquivo.\n");
+		return;
+	}
+	fseek(fp, (RRN*TAM_REG)+TAM_CABECALHO, SEEK_SET);
+	if(existencia_registro(fp)){ //checo se o registro é valido, leio o registro e imprimo o seu conteudo
+		r = le_bin_escola(fp);
+		print_escola(r);
+		free_escola(r);
+	}else{ //registro invalido (registro removido)
+		printf("Registro inexistente.\n");
+	}
+
+}
+
 
 void imprime_indice(){
 	FILE *f = fopen("indice.bin", "rb");
@@ -1287,6 +1364,9 @@ int main(int argc, char *argv[]){
 	}
 	else if(func == 10){
 		imprime_indice();
+	}else if(func == 12){
+		int chave  = atoi(argv[2]);
+		busca(chave);
 	}
 	return 0;
 }
