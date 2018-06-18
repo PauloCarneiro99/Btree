@@ -605,6 +605,30 @@ int buscaArvoreB(int chave){
 	//se chegou aqui, nao achou a chave buscada
 }
 
+int existencia_registro();
+Escola* le_bin_escola();
+void print_escola();
+void free_escola();
+
+void busca(int chave){
+	Escola* r;
+	int RRN = buscaArvoreB(chave);
+	FILE *fp = fopen("saida.bin", "rb");
+	if(fp == NULL){
+		printf("Falha no carregamento do arquivo.\n");
+		return;
+	}
+	fseek(fp, (RRN*TAM_REG)+TAM_CABECALHO, SEEK_SET);
+	if(existencia_registro(fp)){ //checo se o registro é valido, leio o registro e imprimo o seu conteudo
+		r = le_bin_escola(fp);
+		print_escola(r);
+		free_escola(r);
+	}else{ //registro invalido (registro removido)
+		printf("Registro inexistente.\n");
+	}
+
+}
+
 
 void imprime_indice(){
 	FILE *f = fopen("indice.bin", "rb");
@@ -1341,7 +1365,7 @@ int main(int argc, char *argv[]){
 		imprime_indice();
 	}else if(func == 12){
 		int chave  = atoi(argv[2]);
-		buscaArvoreB(chave);
+		busca(chave);
 	}
 	return 0;
 }
