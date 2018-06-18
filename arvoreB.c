@@ -542,6 +542,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 			Insert_Non_Full(fp, C, s, chave,RRN_dados, C->noRaiz, bp);
 			C->altura++; //toda vez que é dado um split na raiz a altura aumenta em um nivel
 			C->noRaiz = C->ultimoRRN; // apenas se foi dado split o RRN da raiz muda
+			modificaRaizBuffer(fp, C->noRaiz,s, bp);
 			atualiza_Cabecalho_B(fp, C);
 		}
 		else{
