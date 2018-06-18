@@ -264,19 +264,19 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 
 	bp->BufferMiss += 1; 
 
-	if(bp->RRN[0] != -1){ //salvando a antiga raiz no arquivo
+	if(bp->RRN[0] != -1 && bp->modificado[0] == 1){ //salvando a antiga raiz no arquivo
 		fseek(fp, (TAM_PAG*bp->RRN[0])+TAM_CABECALHO_B, SEEK_SET);
 		escreve_pagina(fp, bp->node[0]);
 	}
 
 
-	print_Pagina(p);
 	bp->modificado[0] = 1;
 	paginaCopy(bp->node[0], p);
-	//bp->node[0] = p;
+
 	printf("no modifica %d\n\n\n",p->N);
+
 	bp->RRN[0] = RRN;
-	for(int i=1; i<TAM_BUFFER; i++){
+	for(int i=1; i<TAM_BUFFER; i++){ //evitando que o RRN esteja inserido duas vezes no mesmo buffer pool
 		if(RRN == bp->RRN[i]){
 			bp->RRN[i] = -1;
 			reorganiza(bp, i);
@@ -620,6 +620,10 @@ void free_escola();
 void busca(int chave){
 	Escola* r;
 	int RRN = buscaArvoreB(chave);
+	if(RRN == -1){
+		printf("Chave nao encontrada\n");
+		return;
+	}
 	FILE *fp = fopen("saida.bin", "rb");
 	if(fp == NULL){
 		printf("Falha no carregamento do arquivo.\n");
