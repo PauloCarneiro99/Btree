@@ -552,8 +552,12 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 }
 
 
-Pagina* buscaArvoreB(int chave){
+int buscaArvoreB(int chave){
 	FILE* fp = fopen("indice.bin", "rb");
+	if(fp == NULL){
+		printf("Falha no carregamento do arquivo.\n");
+		return -1;
+	}
 	Cabecalho_B* C  = le_cabecalho_B(fp);
 	Pagina *p = cria_pagina();
 	int i;
@@ -568,7 +572,7 @@ Pagina* buscaArvoreB(int chave){
 			if(p->c_pr[i]->chave == chave){
 				printf("acheiii\n");
 				fclose(fp);
-				return p;
+				return p->c_pr[i]->RRN;
 			}
 			if(p->c_pr[i]->chave > chave){
 				RRN = p->P[i];
@@ -590,14 +594,14 @@ Pagina* buscaArvoreB(int chave){
 		if(p->c_pr[i]->chave == chave){
 			printf("acheiii\n");
 			fclose(fp);
-			return p;
+			return p->c_pr[i]->RRN;
 		}
 		if(p->c_pr[i]->chave > chave){
 			break;
 		}
 	}
 	fclose(fp);
-	return NULL;
+	return -1;
 	//se chegou aqui, nao achou a chave buscada
 }
 
