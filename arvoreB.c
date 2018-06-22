@@ -267,7 +267,6 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 }
 void print_Pagina();
 void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
-
 	printf("Voce esta em um medifica raiz antes, com o RRN %d:   ",RRN);
 
 	for(int i=0;i<5;i++){
@@ -548,7 +547,6 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 		//fseek(fp, offset, SEEK_SET);
 		//lendo a pagina raiz
 		//r = le_pagina(fp);
-
 		printf("entrando get\n");
 		r = get(fp, C->noRaiz, bp);		
 		//se a raiz esta cheia
@@ -586,12 +584,10 @@ int buscaArvoreB(int chave){
 	RRN = C->noRaiz;
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 	p = le_pagina(fp); //toda busca comeca pela pagina da raiz
-	printf("a\n");
 	while(!EhFolha(p)){
 		flag = 0;
 		for(i=0; i<p->N; i++){
 			if(p->c_pr[i]->chave == chave){
-				printf("acheiii\n");
 				fclose(fp);
 				return p->c_pr[i]->RRN;
 			}
@@ -604,17 +600,14 @@ int buscaArvoreB(int chave){
 			}
 		}
 		if(flag == 0){
-			RRN = p->P[i+1];
+			RRN = p->P[i];
 			fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 			p = le_pagina(fp);
 		}
 	}
 	//cheguei aqui entao to procurando em um no folha
-	printf("tam folha %d\n", p->N);
 	for(i=0; i<p->N; i++){
-		printf("aqui fora\n");
 		if(p->c_pr[i]->chave == chave){
-			printf("acheiii\n");
 			fclose(fp);
 			return p->c_pr[i]->RRN;
 		}
