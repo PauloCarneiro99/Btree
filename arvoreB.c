@@ -225,8 +225,10 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 		if(bp->RRN[i] == -1){
 			//insere nessa posicao ja
 			paginaCopy(bp->node[i], p);
-			bp->modificado[i] = 1;
+			bp->modificado[i] = 0;
 			bp->RRN[i] = RRN;
+			fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
+			escreve_pagina(fp, p);
 		}else{
 			//insere no inicio e reorganiza
 			if(bp->modificado[1] == 1){
@@ -237,8 +239,11 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 				escreve_pagina(fp, bp->node[1]);
 			}
 			paginaCopy(bp->node[1], p);
-			bp->modificado[1] = 1;
+			bp->modificado[1] = 0;
 			bp->RRN[1] = RRN;
+			//essas duas linhas sao necessarias ?
+			// fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
+			// escreve_pagina(fp, p);
 		}
 	}else{//atualiza a informacao que ja esta no Buffer Pool
 		//atualizar a informacao
@@ -270,12 +275,17 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 	}
 
 
-	bp->modificado[0] = 1;
+	bp->modificado[0] = 0;
 	paginaCopy(bp->node[0], p);
 
 	printf("no modifica %d\n\n\n",p->N);
 
 	bp->RRN[0] = RRN;
+
+	fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
+	escreve_pagina(fp, p);
+
+
 	for(int i=1; i<TAM_BUFFER; i++){ //evitando que o RRN esteja inserido duas vezes no mesmo buffer pool
 		if(RRN == bp->RRN[i]){
 			bp->RRN[i] = -1;
@@ -366,14 +376,10 @@ void cria_arvore(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	p->c_pr[0]->RRN = RRN_dados;
 	p->N++; 
 
-	printf("LALALALAL 	%d %d\n\n", p->N, chave);
-
 	//fseek(fp, TAM_CABECALHO_B, SEEK_SET);
 	//escreve_pagina(fp, p);
 	modificaRaizBuffer(fp, 0, p, bp);
 	//free(p);
-
-	printf("LOLOLOLOL 	%d %d\n\n", bp->node[0]->N, chave);
 
 	printf("cria arvore depois\n");
 	for(int i=0; i<5; i++){
@@ -535,7 +541,6 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 		//lendo a pagina raiz
 		//r = le_pagina(fp);
 
-		printf("ANTEEEEEEEEEEEES %d\n\n",bp->node[0]->N);
 		printf("entrando get\n");
 		r = get(fp, C->noRaiz, bp);		
 		//se a raiz esta cheia
@@ -558,7 +563,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	}
 }
 
-
+//por enquanto a operacao de busca faz manipulacoes com arquivo que devem ser substituidas pelas operacoes de buffer pull
 int buscaArvoreB(int chave){
 	FILE* fp = fopen("indice.bin", "rb");
 	if(fp == NULL){
@@ -573,9 +578,10 @@ int buscaArvoreB(int chave){
 	RRN = C->noRaiz;
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 	p = le_pagina(fp); //toda busca comeca pela pagina da raiz
+	printf("a\n");
 	while(!EhFolha(p)){
+		flag = 0;
 		for(i=0; i<p->N; i++){
-			flag = 0;
 			if(p->c_pr[i]->chave == chave){
 				printf("acheiii\n");
 				fclose(fp);
@@ -593,11 +599,12 @@ int buscaArvoreB(int chave){
 			RRN = p->P[i+1];
 			fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 			p = le_pagina(fp);
-		}else
-			flag = 0;
+		}
 	}
 	//cheguei aqui entao to procurando em um no folha
+	printf("tam folha %d\n", p->N);
 	for(i=0; i<p->N; i++){
+		printf("aqui fora\n");
 		if(p->c_pr[i]->chave == chave){
 			printf("acheiii\n");
 			fclose(fp);
