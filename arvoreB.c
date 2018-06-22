@@ -339,7 +339,12 @@ Pagina* get(FILE *fp,int RRN, BufferPool *bp){
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B,SEEK_SET);
 	p = le_pagina(fp);
 	put(fp, RRN, bp, p);
-	return bp->node[TAM_BUFFER-1];
+	for(int i=0; i<TAM_BUFFER; i++){
+		if(bp->RRN[i] == RRN){
+			return bp->node[i];
+		}	
+
+	}
 }
 
 
@@ -578,12 +583,15 @@ int buscaArvoreB(int chave){
 	}
 	Cabecalho_B* C  = le_cabecalho_B(fp);
 	Pagina *p = cria_pagina();
+	BufferPool bp;
 	int i;
 	int RRN;
 	int flag;
+	iniciaBufferPool(&bp);
 	RRN = C->noRaiz;
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 	p = le_pagina(fp); //toda busca comeca pela pagina da raiz
+	modificaRaizBuffer(fp,RRN,p ,&bp);
 	while(!EhFolha(p)){
 		flag = 0;
 		for(i=0; i<p->N; i++){
@@ -593,16 +601,18 @@ int buscaArvoreB(int chave){
 			}
 			if(p->c_pr[i]->chave > chave){
 				RRN = p->P[i];
-				fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
-				p = le_pagina(fp);
+				p = get(fp, RRN, &bp);
+				//fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
+				//p = le_pagina(fp);
 				flag = 1;
 				break;
 			}
 		}
 		if(flag == 0){
 			RRN = p->P[i];
-			fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
-			p = le_pagina(fp);
+			p = get(fp, RRN, &bp);
+			//fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
+			//p = le_pagina(fp);
 		}
 	}
 	//cheguei aqui entao to procurando em um no folha
