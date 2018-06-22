@@ -12,12 +12,13 @@
 #define TAM_CAMPO 10
 #define TAM_REG 112
 #define TAM_CABECALHO 5
-#define D 10 //ordem da arvore B
+#define ORDEM 10 //ordem da arvore B
+#define MAX_CHAVES ORDEM-1
 #define TAM_PAG 116 //tamanho da pagina do indice
 #define TAM_CABECALHO_B 13
 #define TAM_BUFFER 5
 #define NIL -1
-#define t D/2
+#define t ORDEM/2
 
 // registro de cabeçalho
 typedef struct{
@@ -96,15 +97,15 @@ void cria_Cabecalho_B(FILE* fp){
 
 Pagina* cria_pagina(){
 	Pagina* p = calloc(1 ,sizeof(Pagina));
-	p->c_pr = calloc(1, sizeof(C_PR*) * (D - 1));
-	for(int i = 0; i < D - 1; i++){
+	p->c_pr = calloc(1, sizeof(C_PR*) * (MAX_CHAVES));
+	for(int i = 0; i < MAX_CHAVES; i++){
 		p->c_pr[i] = calloc(1, sizeof(C_PR));
 		p->c_pr[i]->chave = 0;
 		p->c_pr[i]->RRN = -1;
 	}
-	p->P = calloc(1, sizeof(int) * D);
+	p->P = calloc(1, sizeof(int) * ORDEM);
 	p->N = 0;//numero de chaves de um nó recém criado
-	memset(p->P, -1, sizeof(int) * D);
+	memset(p->P, -1, sizeof(int) * ORDEM);
 	return p;
 }
 
@@ -112,11 +113,11 @@ Pagina* cria_pagina(){
 Pagina* le_pagina(FILE* fp){
 	Pagina* p = cria_pagina();
 	fread(&p->N, sizeof(int), 1, fp); 
-	for(int i = 0; i < D - 1; i++){
+	for(int i = 0; i < MAX_CHAVES; i++){
 		fread(&p->c_pr[i]->chave, sizeof(int), 1, fp);
 		fread(&p->c_pr[i]->RRN, sizeof(int), 1, fp);
 	}
-	for(int i = 0; i < D; i++){
+	for(int i = 0; i < ORDEM; i++){
 		fread(&p->P[i], sizeof(int), 1, fp);
 	}
 	return p;
@@ -125,11 +126,11 @@ Pagina* le_pagina(FILE* fp){
 //escreve uma pagina de disco no arquivo de Indice
 void escreve_pagina(FILE* fp, Pagina* p){
 	fwrite(&p->N, sizeof(int), 1, fp); 
-	for(int i = 0; i < D - 1; i++){
+	for(int i = 0; i < MAX_CHAVES; i++){
 		fwrite(&p->c_pr[i]->chave, sizeof(int), 1, fp);
 		fwrite(&p->c_pr[i]->RRN, sizeof(int), 1, fp);
 	}
-	for(int i = 0; i < D; i++){
+	for(int i = 0; i < ORDEM; i++){
 		fwrite(&p->P[i], sizeof(int), 1, fp);
 	}
 }
@@ -147,6 +148,12 @@ void iniciaBufferPool(BufferPool *bp){
 void paginaCopy(Pagina *a, Pagina *b){ // copia o conteudo da página B para a página A
 	a->N = b->N;
 	a->c_pr = b->c_pr;
+	// a->c_pr = calloc(1, sizeof(C_PR*) * (MAX_CHAVES));
+	// for(int i=0; i< MAX_CHAVES; i++){
+	// 	a->c_pr[i] = calloc(1, sizeof(C_PR));
+	// 	a->c_pr[i]->chave = b->c_pr[i]->chave;
+	// 	a->c_pr[i]->RRN = b->c_pr[i]->RRN;
+	// }
 	a->P = b->P;
 }
 
@@ -241,6 +248,7 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 			paginaCopy(bp->node[1], p);
 			bp->modificado[1] = 0;
 			bp->RRN[1] = RRN;
+			
 			//essas duas linhas sao necessarias ?
 			// fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
 			// escreve_pagina(fp, p);
@@ -395,7 +403,7 @@ int pesquisa(int raiz, int chave){
 //percorre o vetor de ponteiros filhos da página e verifica 
 //se existe pelo menos um filho, caso contrario é nó folha
 int EhFolha(Pagina* p){
-	for(int i = 0; i < D; i++){
+	for(int i = 0; i < ORDEM; i++){
 		if(p->P[i] != -1){
 			return 0;
 		}
@@ -405,12 +413,12 @@ int EhFolha(Pagina* p){
 
 void print_Pagina(Pagina* p){
 	printf("%d ", p->N);
-	for(int i = 0; i < D - 1; i++){
+	for(int i = 0; i < MAX_CHAVES; i++){
 		printf("%d ", p->c_pr[i]->chave);
 		printf("%d ", p->c_pr[i]->RRN);
 	}
 	printf("||");
-	for(int i = 0; i < D; i++){
+	for(int i = 0; i < ORDEM; i++){
 		printf("%d ", p->P[i]);
 	}
 	printf("\n");
@@ -503,7 +511,7 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 		r = get(fp, offset, bp);
 
 		//se a pagina esta cheia, split
-		if(r->N == D - 1){
+		if(r->N == MAX_CHAVES){
 			//fseek(fp, -TAM_PAG, SEEK_CUR);//pulando pra trás a pagina para depois escrever novamente
 			split(fp, C, s, r, i, RRN_pai, bp, s->P[i]);
 			imprime_Cabecalho(C);
@@ -544,7 +552,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 		printf("entrando get\n");
 		r = get(fp, C->noRaiz, bp);		
 		//se a raiz esta cheia
-		if(r->N == D - 1){
+		if(r->N == MAX_CHAVES){
 			s = cria_pagina();
 			s->P[0] = C->noRaiz;
 			//fseek(fp, -TAM_PAG, SEEK_CUR);//pulando pra trás a pagina para depois escrever novamente ela atualizada
