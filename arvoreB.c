@@ -160,9 +160,18 @@ void paginaCopy(Pagina *a, Pagina *b){ // copia o conteudo da página B para a p
 
 void swap(BufferPool *bp, int i){
 	Pagina *p = malloc(sizeof(Pagina));
+
+	/*
 	paginaCopy(p, bp->node[i]);
 	paginaCopy(bp->node[i], bp->node[i+1]);
 	paginaCopy(bp->node[i+1], p);
+	*/
+
+
+	*p = *bp->node[i];
+	*bp->node[i] = *bp->node[i+1];
+	*bp->node[i+1] = *p;
+
 
 	int RRN = bp->RRN[i];
 	bp->RRN[i] = bp->RRN[i+1];
@@ -233,7 +242,8 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 		bp->BufferMiss += 1;
 		if(bp->RRN[i] == -1){
 			//insere nessa posicao ja
-			paginaCopy(bp->node[i], p);
+			*bp->node[i] = *p;
+			//paginaCopy(bp->node[i], p);
 			bp->modificado[i] = 0;
 			bp->RRN[i] = RRN;
 			fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
@@ -248,7 +258,8 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 				fseek(fp, (TAM_PAG*bp->RRN[1])+ TAM_CABECALHO_B, SEEK_SET);
 				escreve_pagina(fp, bp->node[1]);
 			}
-			paginaCopy(bp->node[1], p);
+			*bp->node[1] = *p;
+		//	paginaCopy(bp->node[1], p);
 			bp->modificado[1] = 0;
 			bp->RRN[1] = RRN;
 		
@@ -267,8 +278,8 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 		//marcar como pagina modificada
 		//reorganizar	
 		bp->BufferHit += 1;
-		paginaCopy(bp->node[i],p);
-		//bp->node[i] = p;
+		//paginaCopy(bp->node[i],p);
+		*bp->node[i] = *p;
 		bp->modificado[i] = 1;
 		if(i!=0) 
 			reorganiza(bp,i);
@@ -291,7 +302,8 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 
 
 	bp->modificado[0] = 0;
-	paginaCopy(bp->node[0], p);
+	//paginaCopy(bp->node[0], p);
+	*bp->node[0] = *p;
 
 	printf("no modifica %d\n\n\n",p->N);
 
@@ -319,7 +331,7 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 }
 
 
-Pagina* get(FILE *fp,int RRN, BufferPool *bp){
+Pagina get(FILE *fp,int RRN, BufferPool *bp){
 
 	//printf("NO GETTTT %d ",bp->node[0]->N);
 
@@ -341,7 +353,7 @@ Pagina* get(FILE *fp,int RRN, BufferPool *bp){
 				i = reorganiza(bp, i);
 			
 			printf("RRRN BPPPPPPPPPPPP %d %d(i: %d iAux: %d)\n\n",bp->RRN[i], bp->RRN[iAux],i,iAux);
-			return bp->node[i];
+			return *bp->node[i];
 		}	
 
 	}
@@ -350,7 +362,7 @@ Pagina* get(FILE *fp,int RRN, BufferPool *bp){
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B,SEEK_SET);
 	p = le_pagina(fp);
 	put(fp, RRN, bp, p);
-	return p;
+	return *p;
 }
 
 
@@ -443,7 +455,7 @@ void split(FILE* fp, Cabecalho_B* C, Pagina *s, Pagina *r,  int i, int RRN_pai, 
 	Pagina* z = cria_pagina();
 	z->N = t - 1;
 	
-	printf("ANTES DE PASSAR PRO LADO\n");
+	printf("ANTES DE PASSAR PRO LADO: RRN ATUAL %d\n", RRN_atual);
 	print_Pagina(r);
 	printf("\n\n");
 
@@ -538,16 +550,27 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 		}
 		i++;
 		offset = s->P[i];
+		
+		printf("PRINT NO S PRIMEIRO RRN %d\n\n",RRN_pai);
+		print_Pagina(s);
+
 		Pagina* r = cria_pagina();
 		//fseek(fp, (offset * TAM_PAG) + TAM_CABECALHO_B, SEEK_SET);
 		//r = le_pagina(fp);
 		//RRN = offset;
 		printf("\n\nOFFSET: %d\n\n", offset);
-		r = get(fp, offset, bp);
+		*r = get(fp, offset, bp);
+		printf("dps do get\n");
+		print_Pagina(s);
 
 		//se a pagina esta cheia, split
 		if(r->N == MAX_CHAVES){
 			//fseek(fp, -TAM_PAG, SEEK_CUR);//pulando pra trás a pagina para depois escrever novamente
+			
+			printf("PRINT NO S SEGUNDO\n\n");
+			print_Pagina(s);
+			printf("i %d s->P[i] %d  inserindo chave %d\n\n",i,s->P[i],chave);
+
 			split(fp, C, s, r, i, RRN_pai, bp, s->P[i]);
 			imprime_Cabecalho(C);
 			if(chave > s->c_pr[i]->chave){
@@ -556,14 +579,9 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 			offset = s->P[i];
 			//fseek(fp, (offset * TAM_PAG) + TAM_CABECALHO_B, SEEK_SET);
 			//r = le_pagina(fp);
-			r = get(fp, offset, bp);
+			*r = get(fp, offset, bp);
 		}
 		Insert_Non_Full(fp, C, r, chave, RRN_dados, offset, bp);
-	/*	
-		if(s->N == MAX_CHAVES){
-			split(fp, C, s, r, i, RRN_pai, bp, s->P[i]);
-		}
-		*/
 	}
 }
 
@@ -571,6 +589,9 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	Cabecalho_B* C;
 	Pagina *r, *s;
+	r = cria_pagina();
+	s = cria_pagina();
+
 	C = le_cabecalho_B(fp);
 	//se a arvore esta vazia
 	printf("###-> COMEÇA INSERIR CHAVE %d\n",chave);
@@ -592,7 +613,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 		//lendo a pagina raiz
 		//r = le_pagina(fp);
 		printf("entrando get\n");
-		r = get(fp, C->noRaiz, bp);		
+		*r = get(fp, C->noRaiz, bp);		
 
 		//se a raiz esta cheia
 		if(r->N == MAX_CHAVES){
@@ -643,7 +664,7 @@ int buscaArvoreB(int chave){
 			}
 			if(p->c_pr[i]->chave > chave){
 				RRN = p->P[i];
-				p = get(fp, RRN, &bp);
+				*p = get(fp, RRN, &bp);
 				//fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 				//p = le_pagina(fp);
 				flag = 1;
@@ -652,7 +673,7 @@ int buscaArvoreB(int chave){
 		}
 		if(flag == 0){
 			RRN = p->P[i];
-			p = get(fp, RRN, &bp);
+			*p = get(fp, RRN, &bp);
 			//fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 			//p = le_pagina(fp);
 		}
