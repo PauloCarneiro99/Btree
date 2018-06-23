@@ -82,7 +82,6 @@ Cabecalho_B* le_cabecalho_B(FILE* fp){
 	return C;
 }
 void cria_Cabecalho_B(FILE* fp){
-	//printf("\nentrei aqui\n");
 	Cabecalho_B* C = calloc(1, sizeof(Cabecalho_B));
 	C->status = 0;
 	C->noRaiz = -1;
@@ -302,7 +301,7 @@ Pagina get(FILE *fp,int RRN, BufferPool *bp){
 }
 
 
-void atualiza_Cabecalho_B(FILE *f, Cabecalho_B* C){
+void  atualiza_Cabecalho_B(FILE *f, Cabecalho_B* C){
 	fseek(f, 0, SEEK_SET); // garante que o byte offset esteja no inicio do arquivo
 	fwrite(&C->status, sizeof(char), 1, f);
 	fwrite(&C->noRaiz, sizeof(int), 1, f);
@@ -315,14 +314,17 @@ void atualiza_status_B(FILE* f, char status){
 	fwrite(&status, sizeof(char), 1, f);
 	fseek(f, 0, SEEK_SET); // volta o byte offset para o inicio
 }
-void atualiza_raiz_B(FILE* f, int novaRaiz){
-	fseek(f, sizeof(char), SEEK_SET);
-	fwrite(&novaRaiz, sizeof(int),1, f);
-	fseek(f, 0, SEEK_SET);
+char verifica_status_B(FILE *fp){
+	char status;
+	fseek(fp,0,SEEK_SET); //garantindo que o ponteiro de arquivo esta no inicio
+	fread(&status, sizeof(char),1,fp);
+	if(status == 0)
+		printf("Falha no processamento do arquivo.\n");
+	fseek(fp,0,SEEK_SET); //retornando o ponteiro de arquivo para o inicio do arquivo
+	return status;
 }
-
 void imprime_Cabecalho(Cabecalho_B* C){
-	printf("status: %c ", C->status);
+	printf("status: %d ", C->status);
 	printf("Raiz: %d ", C->noRaiz);
 	printf("altura: %d ", C->altura);
 	printf("ultimo RRN: %d ", C->ultimoRRN);
@@ -493,7 +495,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	}
 }
 
-//por enquanto a operacao de busca faz manipulacoes com arquivo que devem ser substituidas pelas operacoes de buffer pull
+//Realiza uma busca pelo codEscola no arquivo de indice arvore B com auxilio do Buffer Pool
 int buscaArvoreB(int chave){
 	FILE* fp = fopen("indice.bin", "rb");
 	if(fp == NULL){
@@ -967,10 +969,11 @@ void insere_registro(char* nomeArquivo, char** argv){
 	BufferPool bp;
 	iniciaBufferPool(&bp);
 
-	if(!verifica_status(fp)){
+	if(!verifica_status(fp) || !verifica_status_B(fb)){
 		return;
 	}
 	atualizaStatus(fp, 0); //atualiza o status do arquivo como insconsistente
+	atualiza_status_B(fb, 0); // atualiza o arquivo de indice como inconsistente
 
 	topo = topoPilha(fp); //recuperando o topo da pilha
 	if(topo == -1){ //se o topo for -1, nao existe nenhum elemento removido no arquivo, logo devo inserir no final
@@ -1040,9 +1043,9 @@ void insere_registro(char* nomeArquivo, char** argv){
 
 	flush(fb, &bp);
 	atualizaStatus(fp, 1); //atualiza o status do arquivo como consistente
+	atualiza_status_B(fb, 1); // atualiza o arquivo de indice como consistente
 	fclose(fp);
 	fclose(fb);
-
 }
 
 // Função 5: Remove logicamente um registro, colocando '-1' em seus primeiros 4 bytes (int). Seguido pela pilha, atualizando-a
@@ -1227,7 +1230,6 @@ void le_csv(char *nomeEntrada, char *nomeSaida){
 	FILE *fb;
 	int offset = -1;
 	
-
 	if((fe = fopen(nomeEntrada, "r")) == NULL) { // verifica se encontrou um arquivo de entrada
 		printf("Falha no carregamento do arquivo.\n");
 		return;
@@ -1236,7 +1238,7 @@ void le_csv(char *nomeEntrada, char *nomeSaida){
 	fs = fopen(nomeSaida, "wb+");
 	fb = fopen("indice.bin", "wb+");
 	criaCabecalho(fs); // cria o cabeçalho, status 0 (inconsistente) e topoPilha -1. O byte offset ja esta no fim do arquivo, pode começar a inserir
-	cria_Cabecalho_B(fb);
+	cria_Cabecalho_B(fb);//cria o cabeçalho do indice arvore b, status 0 inconsistente
 	BufferPool bp;
 	iniciaBufferPool(&bp);
 
@@ -1255,7 +1257,8 @@ void le_csv(char *nomeEntrada, char *nomeSaida){
 
 	flush(fb, &bp);	
 	fclose(fe);
-	atualizaStatus(fs, 1); // define o arquivo como consistente
+	atualizaStatus(fs, 1); // define o arquivo de dados como consistente
+	atualiza_status_B(fb, 1); // define o arquivo de indice como consistente
 	fclose(fs);
 	fclose(fb);
 	printf("Arquivo carregado.\n");
