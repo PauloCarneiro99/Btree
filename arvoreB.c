@@ -82,7 +82,6 @@ Cabecalho_B* le_cabecalho_B(FILE* fp){
 	return C;
 }
 void cria_Cabecalho_B(FILE* fp){
-	//printf("\nentrei aqui\n");
 	Cabecalho_B* C = calloc(1, sizeof(Cabecalho_B));
 	C->status = 0;
 	C->noRaiz = -1;
@@ -137,6 +136,7 @@ void escreve_pagina(FILE* fp, Pagina* p){
 	}
 }
 
+//inicializando os valores do Buffer pool
 void iniciaBufferPool(BufferPool *bp){
 	bp->BufferMiss = 0;
 	bp->BufferHit = 0;
@@ -170,6 +170,9 @@ void swap(BufferPool *bp, int i){
 	bp->modificado[i+1] = c;
 }
 
+//Essa funçao eh responsavel por reorganizar o buffer pool, apos um acesso
+//para que assim o elemento utilizado mais recentemente se encontre na ultima posição e o menos utilizado na posição 1
+//e a raiz continua sempre na posição 0
 int reorganiza(BufferPool *bp, int i){
 	while(i < TAM_BUFFER-1){
 		if(bp->RRN[i+1] == -1)
@@ -180,6 +183,8 @@ int reorganiza(BufferPool *bp, int i){
 	return i;
 }
 
+//Percorre o buffer pool e atualiza no arquivo as paginas que foram modificadas no buffer pool
+//função eh chamada no final da funcionalidade que estiver sendo executada
 void flush(FILE *fp, BufferPool *bp){
 	for(int i=0; i<TAM_BUFFER; i++){
 		if(bp->RRN[i] == -1)
@@ -194,16 +199,12 @@ void flush(FILE *fp, BufferPool *bp){
 	}
 }
 
-
+//insere uma nova pagina no buffer caso a mesma ainda nao esteja la (Buffer Miss), caso o contrario atualiza a pagina do buffer (Buffer Hit)
+//Em caso de uma inserção na qual o buffer esta lotado, retira uma das paginas seguindo uma politica de substituição, que nesse caso
+//adotamos a politica LRU, isto é , removemos a pagina que foi recentemente foi menos utilizada
+//(devido a funcao reorganiza, a pagina recentemente menos utilizada esta na ṕosição 1, logo removo essa pagina, atualizo o arquivo caso seja necessario, insiro a
+//nova pagina nessa posição e reorganiza o buffer)
 void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
-
-	printf("Voce esta colocando o put, com o RRN %d:    ",RRN);
-	for(int i=0;i<5;i++){
-		printf("%d ",bp->RRN[i]);
-	}
-	printf("\n");
-
-
 	int flag = 0;
 	int i;
 	for(i=0; i<TAM_BUFFER; i++){
@@ -236,7 +237,6 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 		
 			reorganiza(bp, 1);
 			
-			//essas duas linhas sao necessarias ?
 			 fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
 			 escreve_pagina(fp, p);
 		}
@@ -251,6 +251,9 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 			reorganiza(bp,i);
 	}
 }
+
+//em casos de split na raiz, chamamos essa função que atualiza a raiz no buffer pool
+//isto é checa a posição 0 do buffer, se esta estiver modificada insira no arquivo, e atualize essa posição para a nova raiz
 void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 	bp->BufferMiss += 1; 
 
@@ -280,6 +283,8 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 }
 
 
+//Buscando uma pagina no buffer, caso a mesma ja esteja inserida retorna o seu conteudo(Buffer Hit), caso o contrario, chama a funcao put, que ira inserir a nova pagina
+//no buffer, e depois retorne o conteudo dessa nova pagina (Buffer Miss)
 Pagina get(FILE *fp,int RRN, BufferPool *bp){
 	for(int i=0; i<TAM_BUFFER; i++){
 		if(bp->RRN[i] == -1)
@@ -335,7 +340,6 @@ void cria_arvore(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	p->c_pr[0]->chave = chave;
 	p->c_pr[0]->RRN = RRN_dados;
 	p->N++; 
-
 	modificaRaizBuffer(fp, 0, p, bp);
 }
 
@@ -364,6 +368,7 @@ void print_Pagina(Pagina* p){
 	printf("\n");
 }
 
+//Essa função é responsável pelo split de uma pagina cheia, promovendo uma das chaves e dividindo a pagina cheia em duas.
 void split(FILE* fp, Cabecalho_B* C, Pagina *s, Pagina *r,  int i, int RRN_pai, BufferPool * bp, int RRN_atual){
 	//r é a antiga raiz
 	//s é a nova pai
@@ -405,13 +410,12 @@ void split(FILE* fp, Cabecalho_B* C, Pagina *s, Pagina *r,  int i, int RRN_pai, 
 	put(fp, RRN_pai, bp, s);
 }
 
-
+//funcao percorre a arvore procurando a posição correta para inserir, e enquanto faz isso, checa se as paginas estao cheias, executando um split preventivo
 void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dados, int RRN_pai, BufferPool *bp){
 	int offset;
-	//inicializando i com o elemento mais a direita 
-	int i = s->N - 1;
-	//se o nó é folha
-	if(EhFolha(s)){
+	int i = s->N - 1;//inicializando i com o elemento mais a direita 
+
+	if(EhFolha(s)){	//se o nó é folha
 
 		//Devemos encontrar a posição correta para inserir a chave 
 		//movendo as chaves e RRN uma posicao a frente
@@ -459,12 +463,9 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	Pagina *r, *s;
 	r = cria_pagina();
 	s = cria_pagina();
-
 	C = le_cabecalho_B(fp);
-	//se a arvore esta vazia
 
-
-	if(C->noRaiz == NIL){
+	if(C->noRaiz == NIL){//se a arvore esta vazia
 		cria_arvore(fp, chave, RRN_dados, bp);
 		//atualizando cabeçalho
 		C->altura++;
@@ -475,7 +476,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	}
 	else{
 		*r = get(fp, C->noRaiz, bp);				
-		if(r->N == MAX_CHAVES){//se a raiz esta cheia
+		if(r->N == MAX_CHAVES){//se a raiz esta cheiam, split preventivo
 			s = cria_pagina();
 			s->P[0] = C->noRaiz;
 			split(fp, C, s, r, 0, C->ultimoRRN + 2, bp, C->noRaiz);
