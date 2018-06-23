@@ -69,6 +69,7 @@ typedef struct
 	Pagina *node[TAM_BUFFER];
 }BufferPool;
 
+void print_Pagina();
 Cabecalho_B* le_cabecalho_B(FILE* fp){
 	Cabecalho_B* C = calloc(1 ,sizeof(Cabecalho_B));
 	fseek(fp, 0, SEEK_SET);
@@ -172,7 +173,7 @@ void swap(BufferPool *bp, int i){
 	bp->modificado[i+1] = c;
 }
 
-void reorganiza(BufferPool *bp, int i){
+int reorganiza(BufferPool *bp, int i){
 	printf("Comecou o reorganiza\n");
 	for(int i=0;i<5;i++){
 		printf("%d ",bp->RRN[i]);
@@ -185,6 +186,7 @@ void reorganiza(BufferPool *bp, int i){
 		swap(bp, i);
 		i++;
 	}
+	return i;
 	printf("Acabou o reorganiza\n");
 	for(int i=0;i<5;i++){
 		printf("%d ",bp->RRN[i]);
@@ -242,16 +244,23 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 				//pepgar o RRN do no que esta sendo removido
 				//fazer um fseek para essa posicao
 				//e atualizar oq ta escrito
+				printf("TO TIRANDO DO BUFFER E SALVANDO NO ARQUIVO %d\n",bp->RRN[1]);
 				fseek(fp, (TAM_PAG*bp->RRN[1])+ TAM_CABECALHO_B, SEEK_SET);
 				escreve_pagina(fp, bp->node[1]);
 			}
 			paginaCopy(bp->node[1], p);
 			bp->modificado[1] = 0;
 			bp->RRN[1] = RRN;
+		
+			reorganiza(bp, 1);
 			
+			printf("ESCREVENDO NO ARQUIVO RRN %d\n",RRN);
+			print_Pagina(p);
+			printf("\n\n");
+
 			//essas duas linhas sao necessarias ?
-			// fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
-			// escreve_pagina(fp, p);
+			 fseek(fp, (TAM_PAG*RRN)+ TAM_CABECALHO_B, SEEK_SET);
+			 escreve_pagina(fp, p);
 		}
 	}else{//atualiza a informacao que ja esta no Buffer Pool
 		//atualizar a informacao
@@ -265,9 +274,8 @@ void put(FILE*fp, int RRN, BufferPool *bp, Pagina* p){
 			reorganiza(bp,i);
 	}
 }
-void print_Pagina();
 void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
-	printf("Voce esta em um medifica raiz antes, com o RRN %d:   ",RRN);
+	printf("**####Voce esta em um medifica raiz antes, com o RRN %d:   ",RRN);
 
 	for(int i=0;i<5;i++){
 		printf("%d ",bp->RRN[i]);
@@ -313,7 +321,7 @@ void modificaRaizBuffer(FILE *fp,int RRN, Pagina *p, BufferPool *bp){
 
 Pagina* get(FILE *fp,int RRN, BufferPool *bp){
 
-	printf("NO GETTTT %d ",bp->node[0]->N);
+	//printf("NO GETTTT %d ",bp->node[0]->N);
 
 	printf("Voce esta em um get, com o RRN %d:    ",RRN);
 	for(int i=0;i<5;i++){
@@ -325,11 +333,14 @@ Pagina* get(FILE *fp,int RRN, BufferPool *bp){
 		if(bp->RRN[i] == -1)
 			break;
 		if(bp->RRN[i] == RRN){
+			int iAux = i;
 			bp->BufferHit += 1;
-			printf("ACHEI A PAGINA de rrn %d COM CHAVE 0 %d e tam %d \n\n",bp->RRN[i], bp->node[i]->c_pr[0]->chave, bp->node[i]->N);
+			printf("ACHEI A PAGINA de rrn %d\n",bp->RRN[i]);
 			//entao devo reorganizar o vetor de buffer pool, fazer um swaap entre a posicao i e a posicao i-1, a nao ser que i seja 0, pois nao pode-se fazer swap com a raiz
 			if(i != 0)//a raiz deve sempre estar na posicao 0
-				reorganiza(bp, i);
+				i = reorganiza(bp, i);
+			
+			printf("RRRN BPPPPPPPPPPPP %d %d(i: %d iAux: %d)\n\n",bp->RRN[i], bp->RRN[iAux],i,iAux);
 			return bp->node[i];
 		}	
 
@@ -339,12 +350,7 @@ Pagina* get(FILE *fp,int RRN, BufferPool *bp){
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B,SEEK_SET);
 	p = le_pagina(fp);
 	put(fp, RRN, bp, p);
-	for(int i=0; i<TAM_BUFFER; i++){
-		if(bp->RRN[i] == RRN){
-			return bp->node[i];
-		}	
-
-	}
+	return p;
 }
 
 
@@ -430,9 +436,17 @@ void print_Pagina(Pagina* p){
 
 void split(FILE* fp, Cabecalho_B* C, Pagina *s, Pagina *r,  int i, int RRN_pai, BufferPool * bp, int RRN_atual){
 	printf("SPLIIIIT\n\n\n");
+	//r é a antiga raiz
+	//s é a nova pai
+	//z é o novo filho
 	//nova pagina que vai guardar metade dos filhos de r
 	Pagina* z = cria_pagina();
-	z->N = t - 1 ;
+	z->N = t - 1;
+	
+	printf("ANTES DE PASSAR PRO LADO\n");
+	print_Pagina(r);
+	printf("\n\n");
+
 	for(int j = 0; j < t - 1 ; j++){
 		z->c_pr[j]->chave = r->c_pr[j+t]->chave;
 		z->c_pr[j]->RRN = r->c_pr[j+t]->RRN;
@@ -456,11 +470,30 @@ void split(FILE* fp, Cabecalho_B* C, Pagina *s, Pagina *r,  int i, int RRN_pai, 
 		s->c_pr[j+1]->chave = s->c_pr[j]->chave;
 		s->c_pr[j+1]->RRN = s->c_pr[j]->RRN;
 	}
+	printf("to tentando promover pra algo que tem %d coisas|||||||||||||||||||||\n\n\n\n",s->N);
 	s->c_pr[i]->chave = r->c_pr[t-1]->chave;
+	if(s->c_pr[i]->chave == 35000025){
+		printf("achou 35000025 R[%d] Z[%d] S[%d]\n\n\n",RRN_atual,C->ultimoRRN,RRN_pai);
+		print_Pagina(z);
+		printf("printou pag\n");
+		
+	}
 	s->c_pr[i]->RRN = r->c_pr[t-1]->RRN;
 	r->c_pr[t-1]->chave = 0;
 	r->c_pr[t-1]->RRN = -1;
 	s->N++;
+
+	printf("RAIZ TOP\n\n");
+	print_Pagina(s);
+	printf("\n\nESQUERDA SLPIT\n\n");
+	print_Pagina(r);
+	printf("\n\n");
+
+	printf("R[%d] Z[%d] S[%d]\n\n\n",RRN_atual,C->ultimoRRN,RRN_pai);
+
+	if(RRN_atual == C->ultimoRRN){
+		printf("\n\n\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACHAMO PORRAAAAAAAAAA\n\n\n");
+	}
 	put(fp,RRN_atual,bp,r);
 	//escreve_pagina(fp, r);
 	//fseek(fp, 0, SEEK_END);
@@ -479,8 +512,6 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 	//se o nó é folha
 	if(EhFolha(s)){
 
-		printf("i no insert nonfull ehfolha %d %d \n\n",i, s->c_pr[0]->chave);
-
 		//Devemos encontrar a posição correta para inserir a chave 
 		//movendo as chaves e RRN uma posicao a frente
 		while(i >= 0 && chave < s->c_pr[i]->chave){
@@ -497,7 +528,7 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 		print_Pagina(s);
 
 		//escreve_pagina(fp, s);
-		printf("Pagina inserida no indice com sucesso\n");
+		printf("Pagina inserida no indice com sucesso chave: %d\n",chave);
 		return;
 	}
 	else{
@@ -511,7 +542,7 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 		//fseek(fp, (offset * TAM_PAG) + TAM_CABECALHO_B, SEEK_SET);
 		//r = le_pagina(fp);
 		//RRN = offset;
-		
+		printf("\n\nOFFSET: %d\n\n", offset);
 		r = get(fp, offset, bp);
 
 		//se a pagina esta cheia, split
@@ -528,6 +559,11 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 			r = get(fp, offset, bp);
 		}
 		Insert_Non_Full(fp, C, r, chave, RRN_dados, offset, bp);
+	/*	
+		if(s->N == MAX_CHAVES){
+			split(fp, C, s, r, i, RRN_pai, bp, s->P[i]);
+		}
+		*/
 	}
 }
 
@@ -537,6 +573,9 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 	Pagina *r, *s;
 	C = le_cabecalho_B(fp);
 	//se a arvore esta vazia
+	printf("###-> COMEÇA INSERIR CHAVE %d\n",chave);
+
+
 	if(C->noRaiz == NIL){
 		cria_arvore(fp, chave, RRN_dados, bp);
 		//atualizando cabeçalho
@@ -554,17 +593,20 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 		//r = le_pagina(fp);
 		printf("entrando get\n");
 		r = get(fp, C->noRaiz, bp);		
+
 		//se a raiz esta cheia
 		if(r->N == MAX_CHAVES){
 			s = cria_pagina();
 			s->P[0] = C->noRaiz;
 			//fseek(fp, -TAM_PAG, SEEK_CUR);//pulando pra trás a pagina para depois escrever novamente ela atualizada
+			printf("************SPLIT NA RAIZ CARAI************\n\n");
 			split(fp, C, s, r, 0, C->ultimoRRN + 2, bp, C->noRaiz);
 			C->ultimoRRN++;
-			Insert_Non_Full(fp, C, s, chave,RRN_dados, C->noRaiz, bp);
+			printf("ULT RRN %d\n",C->ultimoRRN);
 			C->altura++; //toda vez que é dado um split na raiz a altura aumenta em um nivel
 			C->noRaiz = C->ultimoRRN; // apenas se foi dado split o RRN da raiz muda
 			modificaRaizBuffer(fp, C->noRaiz,s, bp);
+			Insert_Non_Full(fp, C, s, chave,RRN_dados, C->noRaiz, bp);
 			atualiza_Cabecalho_B(fp, C);
 		}
 		else{
