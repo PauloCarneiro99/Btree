@@ -70,6 +70,7 @@ typedef struct
 }BufferPool;
 
 void print_Pagina();
+
 Cabecalho_B* le_cabecalho_B(FILE* fp){
 	Cabecalho_B* C = calloc(1 ,sizeof(Cabecalho_B));
 	fseek(fp, 0, SEEK_SET);
@@ -818,7 +819,6 @@ void recupera_pilha(char *nomeArquivo){
 	FILE *fp = fopen(nomeArquivo,"rb+");
 	if(!verifica_status(fp))
 		return;
-	atualizaStatus(fp, 0); //atualiza o status do arquivo como insconsistente
 
 	int offset;
 	int topo = topoPilha(fp);
@@ -835,7 +835,6 @@ void recupera_pilha(char *nomeArquivo){
 		}
 	}
 	printf("\n");
-	atualizaStatus(fp, 1);
 	fclose(fp);
 }
 
@@ -848,7 +847,6 @@ void desfragmenta(char* nomeArquivo){
 
 	if(!verifica_status(fp))
 		return;
-	atualizaStatus(fp, 0); //atualiza o status do arquivo como insconsistente
 
 	rename(nomeArquivo, "antigo.bin");
 
@@ -871,7 +869,6 @@ void desfragmenta(char* nomeArquivo){
 		}
 	}
 
-	atualizaStatus(fp, 1);
 	fclose(fp);
 	remove("antigo.bin"); //apagando o arquivo antigo
 	printf("Arquivo de dados compactado com sucesso.\n");
@@ -910,14 +907,14 @@ void atualiza_registro(char *nomeArquivo, char** argv){
 	r = calloc(1, sizeof(Escola));
 	r->codEscola = atoi(argv[3]);
 
-	if(atoi(argv[4]) != 0){ //checando se a entrada por linha de comando nao é vazia, se nao for, atualiza o registro
+	if(strlen(argv[4]) != 0){ //checando se a entrada por linha de comando nao é vazia, se nao for, atualiza o registro
 		r->dataInicio = argv[4];
 	}
 	else{ //caso o contrário, colocando o campo como vazio
 		r->dataInicio = strdup(vazio);
 	}
 
-	if(atoi(argv[5]) != 0){ //checando se a entrada por linha de comando nao é vazia, se nao for, atualiza o registro
+	if(strlen(argv[5]) != 0){ //checando se a entrada por linha de comando nao é vazia, se nao for, atualiza o registro
 		r->dataFinal = argv[5];
 	}
 	else{ //caso o contrário, colocando o campo como vazio
@@ -959,15 +956,19 @@ void atualiza_registro(char *nomeArquivo, char** argv){
 	fclose(fp);
 }
 
-// Função 6: insere registro - retorna o RRN que sera inserido no arquivo de indice
-int insere_registro(char* nomeArquivo, char** argv){
-	Escola* r;
-	int topo, offset;
-	char*vazio = "0000000000";
+// Função 6: insere registro no arquivo de dados binario e no indice de arvore B
+void insere_registro(char* nomeArquivo, char** argv){
+	Escola *r;
+	int topo, offset, RRN_dados;
+	char *vazio = "0000000000";
 
 	FILE *fp = fopen(nomeArquivo,"rb+");
+	FILE *fb = fopen("indice.bin", "rb+");
+	BufferPool bp;
+	iniciaBufferPool(&bp);
+
 	if(!verifica_status(fp)){
-		return 0;
+		return;
 	}
 	atualizaStatus(fp, 0); //atualiza o status do arquivo como insconsistente
 
@@ -975,6 +976,7 @@ int insere_registro(char* nomeArquivo, char** argv){
 	if(topo == -1){ //se o topo for -1, nao existe nenhum elemento removido no arquivo, logo devo inserir no final
 		fseek(fp, 0, SEEK_END);
 		offset = ftell(fp);
+		RRN_dados = (offset - TAM_CABECALHO)/TAM_REG; // definindo RRN para o arquivo de indice
 	}
 	else{
 		offset = (topo * TAM_REG) + TAM_CABECALHO; //calculo o byte offset onde iremos inserir o novo registro
@@ -982,6 +984,7 @@ int insere_registro(char* nomeArquivo, char** argv){
 		fseek(fp, sizeof(int), SEEK_CUR); // pulando os 4 bytes que indicam arquivo removido (-1)
 		fread(&topo, sizeof(int), 1, fp); //lendo o novo topo da pilha
 		fseek(fp, -2*sizeof(int), SEEK_CUR);//voltando para o inicio do registro (byte offset)
+		RRN_dados = topo; // definindo RRN para o arquivo de indice
 	}
 
 	r = calloc(1, sizeof(Escola));
@@ -1026,7 +1029,7 @@ int insere_registro(char* nomeArquivo, char** argv){
 		r->tamEndereco = 0;
 	}
 	escreve_bin_escola(fp, r); //escrevendo o registro no arquivo
-
+	Btree_Insert(fb, r->codEscola, RRN_dados, &bp);
 	free(r->dataInicio);
 	free(r->dataFinal);
 	free(r);
@@ -1035,10 +1038,11 @@ int insere_registro(char* nomeArquivo, char** argv){
 
 	printf("Registro inserido com sucesso.\n");
 
+	flush(fb, &bp);
 	atualizaStatus(fp, 1); //atualiza o status do arquivo como consistente
 	fclose(fp);
+	fclose(fb);
 
-	return offset;
 }
 
 // Função 5: Remove logicamente um registro, colocando '-1' em seus primeiros 4 bytes (int). Seguido pela pilha, atualizando-a
@@ -1083,7 +1087,6 @@ void recupera_reg(char *nomeArquivo, int RRN){
 	FILE *fp = fopen(nomeArquivo,"rb+");
 	if(!verifica_status(fp))
 		return;
-	atualizaStatus(fp, 0); //atauliza o status do arquivo como insconsistente
 
 	int offset =  (RRN * TAM_REG) + TAM_CABECALHO; //calculando o byte offset que o registro buscado se encontra
 
@@ -1103,7 +1106,6 @@ void recupera_reg(char *nomeArquivo, int RRN){
 			printf("Registro inexistente.\n");
 		}
 	}
-	atualizaStatus(fp, 1); //atualiza o status do arquivo como consistente
 	fclose(fp);
 }
 
@@ -1119,7 +1121,6 @@ void pesquisa_campo(char *nomeArquivo, char** argv){
 	FILE *fp = fopen(nomeArquivo,"rb+");
 	if(!verifica_status(fp))
 		return;
-	atualizaStatus(fp, 0); 
 
 	fseek(fp, 0, SEEK_END);
 	tam = ftell(fp);
@@ -1181,7 +1182,6 @@ void pesquisa_campo(char *nomeArquivo, char** argv){
 		printf("Registro inexistente.\n");
 	}
 
-	atualizaStatus(fp, 1); //atualiza o status do arquivo como consistente
 	fclose(fp);
 }
 
@@ -1193,7 +1193,6 @@ void recupera_dados(char* nomeArquivo){
 	FILE *fp = fopen(nomeArquivo,"rb+");
 	if(!verifica_status(fp))
 		return;
-	atualizaStatus(fp, 0); //atualizando o status do arquivo como insconsistente
 
 	fseek(fp, 0, SEEK_END);
 	tam = ftell(fp);
@@ -1217,7 +1216,6 @@ void recupera_dados(char* nomeArquivo){
 	if(encontrouReg == 0) { //se a flag encontrouReg estiver false, nenhum registro foi resgatado
 		printf("Registro inexistente.\n");
 	}
-	atualizaStatus(fp, 1); //atualizando o status do arquivo como consistente 
 	fclose(fp);
 }
 
@@ -1309,8 +1307,14 @@ int main(int argc, char *argv[]){
 		recupera_pilha(nomeSaida);
 	}
 	else if(func == 10){
-		imprime_indice();
-	}else if(func == 12){
+		nomeEntrada = argv[2];
+		le_csv(nomeEntrada, nomeSaida);
+		//imprime_indice();
+	}
+	else if(func == 11){
+		insere_registro(nomeSaida, argv);
+	}
+	else if(func == 12){
 		int chave  = atoi(argv[2]);
 		busca(chave);
 	}
