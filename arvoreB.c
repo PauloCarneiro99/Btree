@@ -200,8 +200,8 @@ void flush(FILE *fp, BufferPool *bp){
 		}
 	}
 
-	printf("PRINT DE TESTE NA FUNÇÃO FLUSH ::: buffer miss = %d  buffer hit = %d\n",bp->BufferMiss, bp->BufferHit);
-	
+	//printf("PRINT DE TESTE NA FUNÇÃO FLUSH ::: buffer miss = %d  buffer hit = %d\n",bp->BufferMiss, bp->BufferHit);
+
 
 	//salvando a taxa de buffer miss e buffer hit no final de um arquivo
 	FILE *fe = fopen("buffer-info.text", "a");
@@ -526,22 +526,25 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 //Realiza uma busca pelo codEscola no arquivo de indice arvore B com auxilio do Buffer Pool
 int buscaArvoreB(int chave){
 	FILE* fp = fopen("indice.bin", "rb");
-	if(fp == NULL){
-		printf("Falha no carregamento do arquivo.\n");
-		return -1;
-	}
 	Cabecalho_B* C  = le_cabecalho_B(fp);
 	Pagina *p = cria_pagina();
 	BufferPool bp;
 	int i;
 	int RRN;
 	int flag;
+
+
+	if(fp == NULL){
+		printf("Falha no carregamento do arquivo.\n");
+		return -1;
+	}
+
 	iniciaBufferPool(&bp);
 	RRN = C->noRaiz;
 	fseek(fp, (RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
 	p = le_pagina(fp); //toda busca comeca pela pagina da raiz
 	modificaRaizBuffer(fp,RRN,p ,&bp);
-	while(!EhFolha(p)){
+	while(!EhFolha(p)){//enquanto nao for uma pagina folha, procuro a chave e desco pela arvore usando as operacoes do Buffer Pool
 		flag = 0;
 		for(i=0; i<p->N; i++){
 			if(p->c_pr[i]->chave == chave){
@@ -549,14 +552,14 @@ int buscaArvoreB(int chave){
 				fclose(fp);
 				return p->c_pr[i]->RRN;
 			}
-			if(p->c_pr[i]->chave > chave){
+			if(p->c_pr[i]->chave > chave){//desco para o filho p->P[i]
 				RRN = p->P[i];
 				*p = get(fp, RRN, &bp);
 				flag = 1;
 				break;
 			}
 		}
-		if(flag == 0){
+		if(flag == 0){//devo descer pelo ultimo filho da página
 			RRN = p->P[i];
 			*p = get(fp, RRN, &bp);
 		}
@@ -586,7 +589,7 @@ void busca(int chave){
 	Escola* r;
 	int RRN = buscaArvoreB(chave);
 	if(RRN == -1){
-		printf("Chave nao encontrada\n");
+		printf("Registro inexistente.\n");
 		return;
 	}
 	FILE *fp = fopen("saida.bin", "rb");
@@ -594,14 +597,15 @@ void busca(int chave){
 		printf("Falha no carregamento do arquivo.\n");
 		return;
 	}
-	fseek(fp, (RRN*TAM_REG)+TAM_CABECALHO, SEEK_SET);
+	fseek(fp, (RRN*TAM_REG)+TAM_CABECALHO, SEEK_SET);//movendo o ponteiro do arquivo para a posição desejada
 	if(existencia_registro(fp)){ //checo se o registro é valido, leio o registro e imprimo o seu conteudo
-		r = le_bin_escola(fp);
-		print_escola(r);
-		free_escola(r);
+		r = le_bin_escola(fp); //lendo um registro
+		print_escola(r);//imprimindo o registro
+		free_escola(r);//liberando o espaço de memória
 	}else{ //registro invalido (registro removido)
 		printf("Registro inexistente.\n");
 	}
+	fclose(fp);
 }
 
 
