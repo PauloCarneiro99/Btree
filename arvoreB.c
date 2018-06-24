@@ -149,12 +149,6 @@ void iniciaBufferPool(BufferPool *bp){
 	}
 }
 
-void paginaCopy(Pagina *a, Pagina *b){ // copia o conteudo da página B para a página A
-	a->N = b->N;
-	a->c_pr = b->c_pr;
-	a->P = b->P;
-}
-
 void swap(BufferPool *bp, int i){
 	Pagina *p = malloc(sizeof(Pagina));
 
