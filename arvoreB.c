@@ -81,6 +81,7 @@ Cabecalho_B* le_cabecalho_B(FILE* fp){
 	fseek(fp, 0, SEEK_SET);
 	return C;
 }
+
 void cria_Cabecalho_B(FILE* fp){
 	Cabecalho_B* C = calloc(1, sizeof(Cabecalho_B));
 	C->status = 0;
@@ -96,6 +97,7 @@ void cria_Cabecalho_B(FILE* fp){
 	free(C);
 }
 
+//funcao que maloca uma pagina nova e inicializa seus valores
 Pagina* cria_pagina(){
 	Pagina* p = calloc(1 ,sizeof(Pagina));
 	p->c_pr = calloc(1, sizeof(C_PR*) * (MAX_CHAVES));
@@ -197,6 +199,28 @@ void flush(FILE *fp, BufferPool *bp){
 			bp->modificado[i] = 0;
 		}
 	}
+
+	printf("PRINT DE TESTE NA FUNÇÃO FLUSH ::: buffer miss = %d  buffer hit = %d\n",bp->BufferMiss, bp->BufferHit);
+	
+
+	//salvando a taxa de buffer miss e buffer hit no final de um arquivo
+	FILE *fe = fopen("buffer-info.text", "a");
+	char *Buffer;
+	if(fe == NULL){
+		printf("Falha no carregamento do arquivo.\n");
+		return;
+	}
+	Buffer = "Page fault:\0";
+	fwrite(Buffer, sizeof(char)*strlen(Buffer), 1, fe);
+	fwrite(&bp->BufferMiss, sizeof(int), 1, fe);
+
+	Buffer = "Page hit:\0";
+	fwrite(Buffer, sizeof(char)*strlen(Buffer), 1, fe);
+	fwrite(&bp->BufferHit, sizeof(int), 1, fe);
+
+	Buffer = "\n\0";
+	fwrite(Buffer, sizeof(char)*strlen(Buffer), 1, fe);
+	fclose(fe);
 }
 
 //insere uma nova pagina no buffer caso a mesma ainda nao esteja la (Buffer Miss), caso o contrario atualiza a pagina do buffer (Buffer Hit)
@@ -315,11 +339,13 @@ void  atualiza_Cabecalho_B(FILE *f, Cabecalho_B* C){
 	fwrite(&C->ultimoRRN, sizeof(int), 1, f);
 	fseek(f, 0, SEEK_SET); // volta o byte offset para o inicio
 }
+
 void atualiza_status_B(FILE* f, char status){
 	fseek(f, 0, SEEK_SET);
 	fwrite(&status, sizeof(char), 1, f);
 	fseek(f, 0, SEEK_SET); // volta o byte offset para o inicio
 }
+
 char verifica_status_B(FILE *fp){
 	char status;
 	fseek(fp,0,SEEK_SET); //garantindo que o ponteiro de arquivo esta no inicio
@@ -329,6 +355,7 @@ char verifica_status_B(FILE *fp){
 	fseek(fp,0,SEEK_SET); //retornando o ponteiro de arquivo para o inicio do arquivo
 	return status;
 }
+
 void imprime_Cabecalho(Cabecalho_B* C){
 	printf("status: %d ", C->status);
 	printf("Raiz: %d ", C->noRaiz);
@@ -442,7 +469,6 @@ void Insert_Non_Full(FILE* fp, Cabecalho_B* C, Pagina* s, int chave, int RRN_dad
 		i++;
 		offset = s->P[i];
 		
-
 		Pagina* r = cria_pagina();
 		*r = get(fp, offset, bp);
 
@@ -486,7 +512,7 @@ void Btree_Insert(FILE* fp, int chave, int RRN_dados, BufferPool *bp){
 			C->ultimoRRN++;
 			C->altura++; //toda vez que é dado um split na raiz a altura aumenta em um nivel
 			C->noRaiz = C->ultimoRRN; // apenas se foi dado split o RRN da raiz muda
-			modificaRaizBuffer(fp, C->noRaiz,s, bp);
+			modificaRaizBuffer(fp, C->noRaiz,s, bp);//como foi feito um split na raiz, atualizo a raiz no buffer pool
 			Insert_Non_Full(fp, C, s, chave,RRN_dados, C->noRaiz, bp);
 			atualiza_Cabecalho_B(fp, C);
 		}
@@ -519,14 +545,13 @@ int buscaArvoreB(int chave){
 		flag = 0;
 		for(i=0; i<p->N; i++){
 			if(p->c_pr[i]->chave == chave){
+				flush(fp, &bp);
 				fclose(fp);
 				return p->c_pr[i]->RRN;
 			}
 			if(p->c_pr[i]->chave > chave){
 				RRN = p->P[i];
 				*p = get(fp, RRN, &bp);
-				//fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
-				//p = le_pagina(fp);
 				flag = 1;
 				break;
 			}
@@ -534,13 +559,12 @@ int buscaArvoreB(int chave){
 		if(flag == 0){
 			RRN = p->P[i];
 			*p = get(fp, RRN, &bp);
-			//fseek(fp,(RRN*TAM_PAG)+TAM_CABECALHO_B, SEEK_SET);
-			//p = le_pagina(fp);
 		}
 	}
 	//cheguei aqui entao to procurando em um no folha
 	for(i=0; i<p->N; i++){
 		if(p->c_pr[i]->chave == chave){
+			flush(fp, &bp);
 			fclose(fp);
 			return p->c_pr[i]->RRN;
 		}
@@ -548,9 +572,9 @@ int buscaArvoreB(int chave){
 			break;
 		}
 	}
+	flush(fp, &bp);
 	fclose(fp);
-	return -1;
-	//se chegou aqui, nao achou a chave buscada
+	return -1;//se chegou aqui, nao achou a chave buscada
 }
 
 int existencia_registro();
@@ -578,7 +602,6 @@ void busca(int chave){
 	}else{ //registro invalido (registro removido)
 		printf("Registro inexistente.\n");
 	}
-
 }
 
 
@@ -1225,7 +1248,7 @@ void recupera_dados(char* nomeArquivo){
 }
 
 // Função 1: le um arquivo de entrada e escreve um binario
-void le_csv(char *nomeEntrada, char *nomeSaida){
+void le_csvQ(char *nomeEntrada, char *nomeSaida){
 	char *linha;
 	Escola *r;
 	FILE *fe, *fs;
@@ -1283,7 +1306,7 @@ int main(int argc, char *argv[]){
 
 	if(func == 1){ // le o arquivo de entrada (csv) e cria o arquivo de dados
 		nomeEntrada = argv[2];
-		le_csv(nomeEntrada, nomeSaida);
+		le_csvQ(nomeEntrada, nomeSaida);
 	}
 	else if(func == 2){
 		recupera_dados(nomeSaida);
@@ -1313,7 +1336,7 @@ int main(int argc, char *argv[]){
 	}
 	else if(func == 10){
 		nomeEntrada = argv[2];
-		le_csv(nomeEntrada, nomeSaida);
+		le_csvQ(nomeEntrada, nomeSaida);
 		//imprime_indice();
 	}
 	else if(func == 11){
