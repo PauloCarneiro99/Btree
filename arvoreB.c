@@ -205,21 +205,11 @@ void flush(FILE *fp, BufferPool *bp){
 
 	//salvando a taxa de buffer miss e buffer hit no final de um arquivo
 	FILE *fe = fopen("buffer-info.text", "a");
-	char *Buffer;
 	if(fe == NULL){
 		printf("Falha no carregamento do arquivo.\n");
 		return;
 	}
-	Buffer = "Page fault:\0";
-	fwrite(Buffer, sizeof(char)*strlen(Buffer), 1, fe);
-	fwrite(&bp->BufferMiss, sizeof(int), 1, fe);
-
-	Buffer = "Page hit:\0";
-	fwrite(Buffer, sizeof(char)*strlen(Buffer), 1, fe);
-	fwrite(&bp->BufferHit, sizeof(int), 1, fe);
-
-	Buffer = "\n\0";
-	fwrite(Buffer, sizeof(char)*strlen(Buffer), 1, fe);
+	fprintf(fe, "Page fault: %d; Page hit: %d.\n",bp->BufferMiss,bp->BufferHit);
 	fclose(fe);
 }
 
