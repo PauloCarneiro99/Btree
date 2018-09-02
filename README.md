@@ -1,3 +1,5 @@
+# Arvore B
+
 Algoritmo de insercao e busca em uma arvore B desenvolvido na linguagem C. Para uma melhora de desempenho foi utilizado um pequeno buffer pool, diminuindo assim os acessos a disco, deixando o codigo mais eficiente. Para o buffer pool, foi adotado a politica de substituicao LRU.
 
 ### Compilando
